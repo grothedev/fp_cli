@@ -1,24 +1,58 @@
 #!/bin/bash
-#this is the official CLI program for Frog Pond
+#this is the official python CLI program for Frog Pond
+
+import os
+import sys
+from pathlib import Path
+import getopt
 
 
 tStr=''
 r=-1
 host='localhost:8000/api/'
-lat=null
-lon=null
-query=$host"croaks?"
-APPDIR=~/.frogpond/
+lat=None
+lon=None
+query=host+"croaks?"
+APPDIR=str(Path.home()) + '/.frogpond/'
 
-echo "Welcome to the Pond"
+print("Welcome to the Pond")
 
-if [ ! -d "$APPDIR" ]; then
-    mkdir $APPDIR
-fi
+if not os.path.isdir(APPDIR):
+    if not os.path.exists(APPDIR):
+        os.mkdir(APPDIR);
+        print("Made app directory " + APPDIR);
+    else:
+        print("Error: another file exists at " + APPDIR);
+
 
 #get command, make api request, present formatted results
 
 #TODO check last query time? or add option for cached croaks?
+
+
+
+opts, extra = getopt.getopt(sys.argv[1:], "ht:l:ci:");
+
+for o, a in opts:
+    print(o + ', ' + a);
+    if o == '-h':
+        print('TODO display help');
+        break;
+    elif o == '-i':
+        query = host + str(a);
+        break;
+    elif o == '-t':
+        tStr += a;
+    elif o == '-l':
+        if a != None:
+            query += 'n=' + str(a) + '&';
+    elif o == 'c':
+        print('creating croak');
+
+
+print(query);
+
+'''
 while getopts :t:l:ci: opt
 do
     case $opt in
@@ -53,3 +87,4 @@ do
 done
 
 echo "Done."
+'''
