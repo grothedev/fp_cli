@@ -5,17 +5,42 @@ import os
 import sys
 from pathlib import Path
 import getopt
+import urllib.request
+import json
+import datetime
+#########################
+
+#shows a croak in a pretty way
+def displayCroak(c):
+    print('Croak ' + str(c['id']) + ': ' + c['timestamp']);
+    print('  ' + c['content']);
+    print('  Tags: ' + c['tags_str']);
+    print();
+
+#assoc human-readable timestamp, tag list, etc.
+def formatData(c):
+    ts = '';
+    for t in c['tags']:
+        ts += t['label'] + ', ';
+    ts = ts[:len(ts)-2]; #remove extra comma
+    c['tags_str'] = ts;
+
+    c['timestamp'] = datetime.datetime.strptime(c['created_at'], '%Y-%m-%d %H:%M:%S').strftime('%Y/%m/%d at %H:%M');
+##########################
 
 
 tStr=''
 r=-1
-host='localhost:8000/api/'
+host='http://127.0.0.1:8000/api/'
 lat=None
 lon=None
 query=host+"croaks?"
 APPDIR=str(Path.home()) + '/.frogpond/'
+###########################
 
-print("Welcome to the Pond")
+
+
+print("~   ~  ~~ ~~~~~ ~~  ~   ~\nWelcome to the Pond!\n")
 
 if not os.path.isdir(APPDIR):
     if not os.path.exists(APPDIR):
@@ -34,57 +59,31 @@ if not os.path.isdir(APPDIR):
 opts, extra = getopt.getopt(sys.argv[1:], "ht:l:ci:");
 
 for o, a in opts:
-    print(o + ', ' + a);
     if o == '-h':
         print('TODO display help');
         break;
     elif o == '-i':
         query = host + str(a);
         break;
+    elif o == 'c':
+        print('creating croak');
+        #TODO
+        break;
     elif o == '-t':
-        tStr += a;
+        tStr += a + ',';
     elif o == '-l':
         if a != None:
             query += 'n=' + str(a) + '&';
-    elif o == 'c':
-        print('creating croak');
 
+if tStr != '':
+    tStr = ''.join(tStr.split());
+    query += 'tags=' + tStr + '&';
 
-print(query);
+res = urllib.request.urlopen(str(query)).read();
+croaks = json.loads(res);
 
-'''
-while getopts :t:l:ci: opt
-do
-    case $opt in
-        i)
-            query=$host"croaks/"$OPTARG
-            break;
-            ;;
-        t)
-            tStr=$OPTARG
-            query=$query"tags="$tStr"&"
-            ;;
-        l)
-            if [[ ! -z $OPTARG ]]
-            then
-                query=$query"n="$OPTARG
-            fi
-            ;;
-        c)
-            echo "creating"
-            ;;
-    esac
+for c in croaks:
+    formatData(c);
+    displayCroak(c);
 
-    res="$(curl $query)"
-    echo $res
-    echo $res > $APPDIR"/res" #saving croaks locally
-    #printf %b $res | jq '.[]|.created_at,.content,.tags[].label'
-    printf %b $res | jq '.[]' | xargs echo 'yo'
-    echo ''
-    #printf %b $res | jq '.[].content'
-    #echo $res | jq '.[].'
-
-done
-
-echo "Done."
-'''
+print("~   ~  ~~ ~~~~~ ~~  ~   ~");
