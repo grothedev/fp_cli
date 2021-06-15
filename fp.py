@@ -49,26 +49,42 @@ def formatData(c):
 
     #c['timestamp'] = datetime.datetime.strptime(c['created_at'], '%Y-%m-%d %H:%M:%S').strftime('%Y/%m/%d at %H:%M');
 
-def createCroak():
-    content = input('Type your croak.\n');
-    filePath = input('If you would like to attach a file, enter the path. Otherwise leave blank.\n');
-    sugTags = ''; #TODO
-    tags = input('Enter some tags to which this croak is related.\n');
-    re.sub(' ', ',', tags) #replace spaces with commas for API compat
-    postData = {
-        'content': content,
-        'tags': tags,
-        'x': lon, 'y': lat
-    }
-    resp = None
-    if filePath != None and filePath != '':
-        filesData = {'f': ('f', open(filePath, 'rb'))}
-        headers = {'content-type': 'multipart/form-data'}
-        resp = requests.post(apiurl+'croaks', data=postData, files=filesData, headers=headers)
+def createCroak(pID=None):
+    if not pID: # no parent ID, so root croak
+        content = input('Type your croak.\n');
+        filePath = input('If you would like to attach a file, enter the path. Otherwise leave blank.\n');
+        sugTags = ''; #TODO
+        tags = input('Enter some tags to which this croak is related.\n');
+        re.sub(' ', ',', tags) #replace spaces with commas for API compat
+        postData = {
+            'content': content,
+            'tags': tags,
+            'x': lon, 'y': lat
+        }
+        resp = None
+        if filePath != None and filePath != '':
+            filesData = {'f': ('f', open(filePath, 'rb'))}
+            headers = {'content-type': 'multipart/form-data'}
+            resp = requests.post(apiurl+'croaks', data=postData, files=filesData, headers=headers)
+        else:
+            resp = requests.post(apiurl+'croaks', data=postData)
+        print(resp.text) #TODO handle response
     else:
-        resp = requests.post(apiurl+'croaks', data=postData)
-    print(resp.text) #TODO handle response
-
+        content = input('Type your croak.\n');
+        filePath = input('If you would like to attach a file, enter the path. Otherwise leave blank.\n');
+        postData = {
+            'content': content,
+            'p_id': pID
+        }
+        if filePath != None and filePath != '':
+            filesData = {'f': ('f', open(filePath, 'rb'))}
+            headers = {'content-type': 'multipart/form-data'}
+            resp = requests.post(apiurl+'croaks', data=postData, files=filesData, headers=headers)
+        else:
+            resp = requests.post(apiurl+'croaks', data=postData)
+        print(resp.text) # TODO
+            
+            
 def displayCroakDetail(croakID):
     resp = requests.get(apiurl+'croaks/'+croakID)
     
@@ -114,6 +130,8 @@ query=apiurl+"croaks?"
 APPDIR=str(Path.home()) + '/.frogpond/'
 printRaw=False
 state=STATE.INIT
+croakdetailID=-1
+localCroaks=[] # locally stored croaks
 ###########################
 
 
@@ -156,6 +174,7 @@ for o, a in opts:
         printRaw = True
     elif o == '-i': #get croak by id
         query = apiurl + 'croaks/' + str(a);
+        croakdetailID = int(a)
         state = STATE.CROAKDETAIL
     elif o == '-r': # radius
         radius = int(a)
@@ -179,7 +198,7 @@ if tagsStr != '':
 query += 'x='+lon + 'y='+lat + 'radius='+radius
 
 resp = requests.get(str(query)).text;
-croaks = json.loads(resp);
+croaks = json.loads(resp)
 
 
 ###
@@ -227,18 +246,28 @@ while True:
                 if userActionStr.lower() == 'q':
                     sys.exit(0)
                 elif userActionStr.lower() == 'c':
-                    userAction = UserAction(ACTION.CROAKCREATE)
+                    if state == STATE.CROAKDETAIL:
+                        userAction = UserAction(ACTION.CROAKCREATE, croakdetailID)
+                    else:
+                        userAction = UserAction(ACTION.CROAKCREATE)
                     break;
+                elif userActionStr.lower() == 'u' and state == STATE.CROAKDETAIL:
+                    userAction = UserAction(ACTION.VOTE, 1)
+                elif userActionStr.lower() == 'd' and state == STATE.CROAKDETAIL:
+                    userAction = UserAction(ACTION.VOTE, 0)
+                elif userActionStr.lower() == 'b':
+                    userAction = UserAction(ACTION.BACK)
                 else:
                     print('Not a valid action: ' + userActionStr)
         except:
             print('Not a valid action')
 
     if userAction.action == ACTION.CROAKDETAIL:
-        displayCroakDetail(userAction.payload)
+        croakdetailID = userAction.payload
+        displayCroakDetail(croakdetailID)
         state = STATE.CROAKDETAIL
     elif userAction.action == ACTION.CROAKCREATE:
-        createCroak()
+        createCroak(userAction.payload)
     elif userAction.action == ACTION.VOTE:
         voteOnCroak(userAction.payload['croak_id'], userAction.payload['vote'])
     elif userAction.action == ACTION.BACK:
