@@ -42,7 +42,7 @@ def formatData(c):
 ###
 tagsStr=''
 tagsExclusive=False
-r=-1
+radius=15 # default radius of km
 apiurl='http://grothe.ddns.net:8090/api/'
 lat=None
 lon=None
@@ -62,25 +62,26 @@ if not os.path.isdir(APPDIR):
     else:
         print("Error: another file exists at " + APPDIR);
 
+#use location service to get lat lon
+locStr = requests.get("http://ipinfo.io/loc").text
+locStrArr = locRes.split(',')
+lat = lacStrArr[0]
+lon = lacStrArr[1]
 
 #get command, make api request, present formatted results
 
 #TODO check last query time? or add option for cached croaks?
 
 
+
 ###
 # INPUT PARSING #
 ###
-opts, extra = getopt.getopt(sys.argv[1:], "hrt:l:m:ci:");
+opts, extra = getopt.getopt(sys.argv[1:], "hRr:t:l:m:ci:");
 
 for o, a in opts:
     if o == '-h':
         print('TODO display help');
-        break;
-    elif o == '-r': #raw data: don't format; direct API response
-        printRaw = True
-    elif o == '-i': #get croak by id
-        query = apiurl + 'croaks/' + str(a);
         break;
     elif o == '-c': #create a croak
         content = input('Type your croak.\n');
@@ -91,7 +92,7 @@ for o, a in opts:
         postData = {
             'content': content,
             'tags': tags,
-            'x': 0, 'y': 0, #TODO location
+            'x': lon, 'y': lat
         }
         resp = None
         if filePath != None and filePath != '':
@@ -106,6 +107,13 @@ for o, a in opts:
         #the request has already been made and feedback outputted to user, so we will exit program.
         sys.exit(0)
         break;
+    elif o == '-R': #raw data: don't format; direct API response
+        printRaw = True
+    elif o == '-i': #get croak by id
+        query = apiurl + 'croaks/' + str(a);
+        break;
+    elif o == '-r': # radius
+        radius = int(a)
     elif o == '-m': # "mode". exclusive or inclusive tags
         if a != 0:
             tagsExclusive = True
@@ -120,6 +128,7 @@ for o, a in opts:
 
 if tagsStr != '':
     query += 'tags=' + tagsStr + '&';
+query += 'x='+lon + 'y='+lat + 'radius='+radius
 
 resp = requests.get(str(query)).read();
 croaks = json.loads(res);
