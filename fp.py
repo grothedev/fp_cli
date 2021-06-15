@@ -108,11 +108,12 @@ for o, a in opts:
         break;
     elif o == '-m': # "mode". exclusive or inclusive tags
         if a != 0:
-            tagsExclude = True
+            tagsExclusive = True
     elif o == '-t': # specify tags
         tagsStr = a
         re.sub(' ', ',', tagsStr)
-        print('Gathering croaks which contain ' + tagsExclude ? 'all' : 'any' + ' of the following tags: ' + tagsStr.split(','))
+        tagSet = 'all' if tagsExclusive else 'any'
+        print('Gathering croaks which contain ' + tagSet + ' of the following tags: ' + tagsStr.split(','))
     elif o == '-l': # limit number of results
         if a != None:
             query += 'n=' + str(a) + '&';
