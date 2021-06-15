@@ -10,6 +10,7 @@ import requests
 import json
 import datetime
 import re
+from enum import Enum
 #########################
 
 
@@ -35,6 +36,25 @@ def formatData(c):
 
     #c['timestamp'] = datetime.datetime.strptime(c['created_at'], '%Y-%m-%d %H:%M:%S').strftime('%Y/%m/%d at %H:%M');
 
+class STATE(Enum):
+    CROAKFEED=0
+    CROAKDETAIL=1
+    CROAKCREATE=2
+    #CROAKREPLY=3
+    
+class ACTIONTYPE(Enum):
+    CROAKDETAIL=0
+    BACK=1
+    CROAKCREATE=2
+    VOTE=3
+    REPLY=4
+    
+class UserAction:
+    action = None
+    payload = None
+    def __init__(self, action, payload=None):
+        self.action = action
+        self.payload = payload
 ##########################
 
 ##########################
@@ -146,4 +166,46 @@ else:
         formatData(c);
         displayCroak(c);
     print("~   ~  ~~ ~~~~~ ~~  ~   ~");
+    
+###
+# USER INTERACTION LOOP
+###
+# wait for input for action
+# perform action
+# display resulting output
+# repeat
 
+#TODO move croak create here
+userAction = None
+print('Select a croak to view details of by number in the list. Or select another action.')
+print('C: Create Croak')
+print('Q: Quit')
+while True
+    try:
+        userActionStr = input()
+        if isinstance(userActionStr, int):
+            userAction = UserAction(ACTION.CROAKDETAIL, int(userActionStr))
+            break;
+        else:
+            if userActionStr.lower() == 'q':
+                sys.exit(0)
+            elif userActionStr.lower() == 'c':
+                userAction = UserAction(ACTION.CROAKCREATE)
+                break;
+            else:
+                print('Not a valid action: ' + userActionStr)
+    except:
+        print('Not a valid action')
+
+if userAction.action == ACTION.CROAKDETAIL:
+    displayCroakDetail(userAction.payload)
+elif userAction.action == ACTION.CROAKCREATE:
+    createCroak()
+elif userAction.action == ACTION.VOTE:
+    voteOnCroak(userAction.payload['croak_id'], userAction.payload['vote'])
+elif userAction.action == ACTION.BACK:
+    back()
+elif userAction.action == ACTION.REPLY:
+    createCroak(userAction.payload['p_id'])
+else:
+    print('something went wrong')
