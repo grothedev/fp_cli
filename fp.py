@@ -1,13 +1,15 @@
-#!/bin/bash
 #this is the official python CLI program for Frog Pond
+#TODO copyright header
+
 
 import os
 import sys
 from pathlib import Path
 import getopt
-import urllib.request
+import requests
 import json
 import datetime
+import re
 #########################
 
 
@@ -38,12 +40,13 @@ def formatData(c):
 ##########################
 # GLOBAL VARS #
 ###
-tStr=''
+tagsStr=''
+tagsExclusive=False
 r=-1
-host='http://grothe.ddns.net:8090/api/'
+apiurl='http://grothe.ddns.net:8090/api/'
 lat=None
 lon=None
-query=host+"croaks?"
+query=apiurl+"croaks?"
 APPDIR=str(Path.home()) + '/.frogpond/'
 printRaw=False
 ###########################
@@ -68,7 +71,7 @@ if not os.path.isdir(APPDIR):
 ###
 # INPUT PARSING #
 ###
-opts, extra = getopt.getopt(sys.argv[1:], "hrt:l:ci:");
+opts, extra = getopt.getopt(sys.argv[1:], "hrt:l:m:ci:");
 
 for o, a in opts:
     if o == '-h':
@@ -77,26 +80,47 @@ for o, a in opts:
     elif o == '-r': #raw data: don't format; direct API response
         printRaw = True
     elif o == '-i': #get croak by id
-        query = host + str(a);
+        query = apiurl + 'croaks/' + str(a);
         break;
-    elif o == '-c':
+    elif o == '-c': #create a croak
         content = input('Type your croak.\n');
         filePath = input('If you would like to attach a file, enter the path. Otherwise leave blank.\n');
         sugTags = ''; #TODO
         tags = input('Enter some tags to which this croak is related.\n');
-        #TODO
+        re.sub(' ', ',', tags) #replace spaces with commas for API compat
+        postData = {
+            'content': content,
+            'tags': tags,
+            'x': 0, 'y': 0, #TODO location
+        }
+        resp = None
+        if filePath != None and filePath != '':
+            filesData = {'f': ('f', open(filePath, 'rb'))}
+            headers = {'content-type': 'multipart/form-data'}
+            resp = requests.post(apiurl+'croaks', data=postData, files=filesData, headers=headers)
+        else:
+            resp = requests.post(apiurl+'croaks', data=postData)
+        print(resp.text)
+        
+        #this is the only special case where we make a POST request. 
+        #the request has already been made and feedback outputted to user, so we will exit program.
+        sys.exit(0)
         break;
-    elif o == '-t':
-        tStr += a + ',';
-    elif o == '-l':
+    elif o == '-m': # "mode". exclusive or inclusive tags
+        if a != 0:
+            tagsExclude = True
+    elif o == '-t': # specify tags
+        tagsStr = a
+        re.sub(' ', ',', tagsStr)
+        print('Gathering croaks which contain ' + tagsExclude ? 'all' : 'any' + ' of the following tags: ' + tagsStr.split(','))
+    elif o == '-l': # limit number of results
         if a != None:
             query += 'n=' + str(a) + '&';
 
-if tStr != '':
-    tStr = ''.join(tStr.split());
-    query += 'tags=' + tStr + '&';
+if tagsStr != '':
+    query += 'tags=' + tagsStr + '&';
 
-res = urllib.request.urlopen(str(query)).read();
+resp = requests.get(str(query)).read();
 croaks = json.loads(res);
 
 
