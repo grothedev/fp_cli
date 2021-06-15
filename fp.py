@@ -21,10 +21,23 @@ from enum import Enum
 
 #shows a croak in a pretty way
 def displayCroak(c):
+    formatData(c)
     print('Croak ' + str(c['id']) + ': ' + c['created_at']);
     print('  ' + c['content']);
     print('  Tags: ' + c['tags_str']);
     print();
+    
+def displayCroakDetail(c):
+    displayCroak(c)
+    print("  Comments:")
+    resp = requests.get(apiurl+'croaks?pid='+c['id'])
+    comments = json.loads(resp.text)
+    displayCroakList(comments)
+    
+def displayCroakList(croaks, withComments=False):
+    for c in croaks:
+        displayCroak(c)
+    
 
 #assoc human-readable timestamp, tag list, etc.
 def formatData(c):
@@ -36,11 +49,42 @@ def formatData(c):
 
     #c['timestamp'] = datetime.datetime.strptime(c['created_at'], '%Y-%m-%d %H:%M:%S').strftime('%Y/%m/%d at %H:%M');
 
+def createCroak():
+    content = input('Type your croak.\n');
+    filePath = input('If you would like to attach a file, enter the path. Otherwise leave blank.\n');
+    sugTags = ''; #TODO
+    tags = input('Enter some tags to which this croak is related.\n');
+    re.sub(' ', ',', tags) #replace spaces with commas for API compat
+    postData = {
+        'content': content,
+        'tags': tags,
+        'x': lon, 'y': lat
+    }
+    resp = None
+    if filePath != None and filePath != '':
+        filesData = {'f': ('f', open(filePath, 'rb'))}
+        headers = {'content-type': 'multipart/form-data'}
+        resp = requests.post(apiurl+'croaks', data=postData, files=filesData, headers=headers)
+    else:
+        resp = requests.post(apiurl+'croaks', data=postData)
+    print(resp.text) #TODO handle response
+
+def displayCroakDetail(croakID):
+    resp = requests.get(apiurl+'croaks/'+croakID)
+    
+def voteOnCroak(croakID, vote):
+    resp = requests.post(apiurl+'votes', vote)
+    print(resp.text)
+    
+def back():
+    return
+    
 class STATE(Enum):
-    CROAKFEED=0
-    CROAKDETAIL=1
-    CROAKCREATE=2
-    #CROAKREPLY=3
+    INIT=0
+    CROAKFEED=1
+    CROAKDETAIL=2
+    CROAKCREATE=3
+    #CROAKREPLY=4
     
 class ACTIONTYPE(Enum):
     CROAKDETAIL=0
@@ -69,6 +113,7 @@ lon=None
 query=apiurl+"croaks?"
 APPDIR=str(Path.home()) + '/.frogpond/'
 printRaw=False
+state=STATE.INIT
 ###########################
 
 
@@ -102,38 +147,19 @@ opts, extra = getopt.getopt(sys.argv[1:], "hRr:t:l:m:ci:");
 for o, a in opts:
     if o == '-h':
         print('TODO display help');
-        break;
-    elif o == '-c': #create a croak
-        content = input('Type your croak.\n');
-        filePath = input('If you would like to attach a file, enter the path. Otherwise leave blank.\n');
-        sugTags = ''; #TODO
-        tags = input('Enter some tags to which this croak is related.\n');
-        re.sub(' ', ',', tags) #replace spaces with commas for API compat
-        postData = {
-            'content': content,
-            'tags': tags,
-            'x': lon, 'y': lat
-        }
-        resp = None
-        if filePath != None and filePath != '':
-            filesData = {'f': ('f', open(filePath, 'rb'))}
-            headers = {'content-type': 'multipart/form-data'}
-            resp = requests.post(apiurl+'croaks', data=postData, files=filesData, headers=headers)
-        else:
-            resp = requests.post(apiurl+'croaks', data=postData)
-        print(resp.text)
-        
-        #this is the only special case where we make a POST request. 
-        #the request has already been made and feedback outputted to user, so we will exit program.
         sys.exit(0)
-        break;
+    elif o == '-c': #create a croak
+        createCroak()
+        state = STATE.CROAKCREATE
+        sys.exit(0) #TODO exit or continue to user interaction?
     elif o == '-R': #raw data: don't format; direct API response
         printRaw = True
     elif o == '-i': #get croak by id
         query = apiurl + 'croaks/' + str(a);
-        break;
+        state = STATE.CROAKDETAIL
     elif o == '-r': # radius
         radius = int(a)
+        state = STATE.CROAKFEED
     elif o == '-m': # "mode". exclusive or inclusive tags
         if a != 0:
             tagsExclusive = True
@@ -142,16 +168,18 @@ for o, a in opts:
         re.sub(' ', ',', tagsStr)
         tagSet = 'all' if tagsExclusive else 'any'
         print('Gathering croaks which contain ' + tagSet + ' of the following tags: ' + tagsStr.split(','))
+        state = STATE.CROAKFEED
     elif o == '-l': # limit number of results
         if a != None:
             query += 'n=' + str(a) + '&';
+        state = STATE.CROAKFEED
 
 if tagsStr != '':
     query += 'tags=' + tagsStr + '&';
 query += 'x='+lon + 'y='+lat + 'radius='+radius
 
-resp = requests.get(str(query)).read();
-croaks = json.loads(res);
+resp = requests.get(str(query)).text;
+croaks = json.loads(resp);
 
 
 ###
@@ -162,9 +190,7 @@ if printRaw:
     print(res.decode('utf-8'))
 else:
     print("~   ~  ~~ ~~~~~ ~~  ~   ~\nWelcome to the Pond!\n")
-    for c in croaks:
-        formatData(c);
-        displayCroak(c);
+    displayCroakList(croaks)
     print("~   ~  ~~ ~~~~~ ~~  ~   ~");
     
 ###
@@ -175,37 +201,49 @@ else:
 # display resulting output
 # repeat
 
-#TODO move croak create here
 userAction = None
-print('Select a croak to view details of by number in the list. Or select another action.')
-print('C: Create Croak')
-print('Q: Quit')
-while True
-    try:
-        userActionStr = input()
-        if isinstance(userActionStr, int):
-            userAction = UserAction(ACTION.CROAKDETAIL, int(userActionStr))
-            break;
-        else:
-            if userActionStr.lower() == 'q':
-                sys.exit(0)
-            elif userActionStr.lower() == 'c':
-                userAction = UserAction(ACTION.CROAKCREATE)
+while True:
+    if state == STATE.CROAKFEED:
+        print('Select a croak to view details of by number in the list. Or select another action.')
+        print('C: Create Croak')
+        print('Q: Quit')
+    elif state == STATE.CROAKDETAIL:
+        print('Select a comment to view details. Or select another action.')
+        print('C: Comment on this Croak')
+        print('B: Back')
+        print('U: Upvote')
+        print('D: Downvote')
+        print('Q: Quit')
+    else:
+        print('what state are you in?')
+
+    while True
+        try:
+            userActionStr = input()
+            if isinstance(userActionStr, int):
+                userAction = UserAction(ACTION.CROAKDETAIL, int(userActionStr))
                 break;
             else:
-                print('Not a valid action: ' + userActionStr)
-    except:
-        print('Not a valid action')
+                if userActionStr.lower() == 'q':
+                    sys.exit(0)
+                elif userActionStr.lower() == 'c':
+                    userAction = UserAction(ACTION.CROAKCREATE)
+                    break;
+                else:
+                    print('Not a valid action: ' + userActionStr)
+        except:
+            print('Not a valid action')
 
-if userAction.action == ACTION.CROAKDETAIL:
-    displayCroakDetail(userAction.payload)
-elif userAction.action == ACTION.CROAKCREATE:
-    createCroak()
-elif userAction.action == ACTION.VOTE:
-    voteOnCroak(userAction.payload['croak_id'], userAction.payload['vote'])
-elif userAction.action == ACTION.BACK:
-    back()
-elif userAction.action == ACTION.REPLY:
-    createCroak(userAction.payload['p_id'])
-else:
-    print('something went wrong')
+    if userAction.action == ACTION.CROAKDETAIL:
+        displayCroakDetail(userAction.payload)
+        state = STATE.CROAKDETAIL
+    elif userAction.action == ACTION.CROAKCREATE:
+        createCroak()
+    elif userAction.action == ACTION.VOTE:
+        voteOnCroak(userAction.payload['croak_id'], userAction.payload['vote'])
+    elif userAction.action == ACTION.BACK:
+        back()
+    elif userAction.action == ACTION.REPLY:
+        createCroak(userAction.payload['p_id'])
+    else:
+        print('something went wrong')
