@@ -26,18 +26,18 @@ def displayCroak(c):
     print('  ' + c['content']);
     print('  Tags: ' + c['tags_str']);
     print();
-    
+
 def displayCroakDetail(c):
     displayCroak(c)
     print("  Comments:")
     resp = requests.get(apiurl+'croaks?pid='+c['id'])
     comments = json.loads(resp.text)
     displayCroakList(comments)
-    
+
 def displayCroakList(croaks, withComments=False):
     for c in croaks:
         displayCroak(c)
-    
+
 
 #assoc human-readable timestamp, tag list, etc.
 def formatData(c):
@@ -83,32 +83,32 @@ def createCroak(pID=None):
         else:
             resp = requests.post(apiurl+'croaks', data=postData)
         print(resp.text) # TODO
-            
-            
+
+
 def displayCroakDetail(croakID):
     resp = requests.get(apiurl+'croaks/'+croakID)
-    
+
 def voteOnCroak(croakID, vote):
     resp = requests.post(apiurl+'votes', vote)
     print(resp.text)
-    
+
 def back():
     return
-    
+
 class STATE(Enum):
     INIT=0
     CROAKFEED=1
     CROAKDETAIL=2
     CROAKCREATE=3
     #CROAKREPLY=4
-    
-class ACTIONTYPE(Enum):
+
+class ACTION(Enum):
     CROAKDETAIL=0
     BACK=1
     CROAKCREATE=2
     VOTE=3
     REPLY=4
-    
+
 class UserAction:
     action = None
     payload = None
@@ -147,9 +147,9 @@ if not os.path.isdir(APPDIR):
 
 #use location service to get lat lon
 locStr = requests.get("http://ipinfo.io/loc").text
-locStrArr = locRes.split(',')
-lat = lacStrArr[0]
-lon = lacStrArr[1]
+locStrArr = locStr.split(',')
+lat = locStrArr[1]
+lon = locStrArr[0]
 
 #get command, make api request, present formatted results
 
@@ -176,8 +176,10 @@ for o, a in opts:
         query = apiurl + 'croaks/' + str(a);
         croakdetailID = int(a)
         state = STATE.CROAKDETAIL
+
     elif o == '-r': # radius
         radius = int(a)
+        query += 'x='+str(lon) + 'y='+str(lat) + 'radius='+str(radius)
         state = STATE.CROAKFEED
     elif o == '-m': # "mode". exclusive or inclusive tags
         if a != 0:
@@ -186,7 +188,7 @@ for o, a in opts:
         tagsStr = a
         re.sub(' ', ',', tagsStr)
         tagSet = 'all' if tagsExclusive else 'any'
-        print('Gathering croaks which contain ' + tagSet + ' of the following tags: ' + tagsStr.split(','))
+        print('Gathering croaks which contain ' + tagSet + ' of the following tags: ' + tagsStr)
         state = STATE.CROAKFEED
     elif o == '-l': # limit number of results
         if a != None:
@@ -195,7 +197,6 @@ for o, a in opts:
 
 if tagsStr != '':
     query += 'tags=' + tagsStr + '&';
-query += 'x='+lon + 'y='+lat + 'radius='+radius
 
 resp = requests.get(str(query)).text;
 croaks = json.loads(resp)
@@ -206,12 +207,12 @@ croaks = json.loads(resp)
 ###
 
 if printRaw:
-    print(res.decode('utf-8'))
+    print(resp)
 else:
     print("~   ~  ~~ ~~~~~ ~~  ~   ~\nWelcome to the Pond!\n")
     displayCroakList(croaks)
     print("~   ~  ~~ ~~~~~ ~~  ~   ~");
-    
+
 ###
 # USER INTERACTION LOOP
 ###
@@ -236,31 +237,34 @@ while True:
     else:
         print('what state are you in?')
 
-    while True
-        try:
-            userActionStr = input()
-            if isinstance(userActionStr, int):
+    while True:
+        userActionStr = input('#')
+        if isinstance(userActionStr, int):
+            try:
                 userAction = UserAction(ACTION.CROAKDETAIL, int(userActionStr))
-                break;
-            else:
-                if userActionStr.lower() == 'q':
-                    sys.exit(0)
-                elif userActionStr.lower() == 'c':
-                    if state == STATE.CROAKDETAIL:
-                        userAction = UserAction(ACTION.CROAKCREATE, croakdetailID)
-                    else:
-                        userAction = UserAction(ACTION.CROAKCREATE)
-                    break;
-                elif userActionStr.lower() == 'u' and state == STATE.CROAKDETAIL:
-                    userAction = UserAction(ACTION.VOTE, 1)
-                elif userActionStr.lower() == 'd' and state == STATE.CROAKDETAIL:
-                    userAction = UserAction(ACTION.VOTE, 0)
-                elif userActionStr.lower() == 'b':
-                    userAction = UserAction(ACTION.BACK)
+            except:
+                print('Not a valid action: ' + userAction)
+            break
+        else:
+            if userActionStr.lower() == 'q':
+                sys.exit()
+            elif userActionStr.lower() == 'c':
+                if state == STATE.CROAKDETAIL:
+                    userAction = UserAction(ACTION.CROAKCREATE, croakdetailID)
                 else:
-                    print('Not a valid action: ' + userActionStr)
-        except:
-            print('Not a valid action')
+                    userAction = UserAction(ACTION.CROAKCREATE)
+                break
+            elif userActionStr.lower() == 'u' and state == STATE.CROAKDETAIL:
+                userAction = UserAction(ACTION.VOTE, 1)
+                break
+            elif userActionStr.lower() == 'd' and state == STATE.CROAKDETAIL:
+                userAction = UserAction(ACTION.VOTE, 0)
+                break
+            elif userActionStr.lower() == 'b':
+                userAction = UserAction(ACTION.BACK)
+                break
+            else:
+                print('Not a valid action: ' + userActionStr)
 
     if userAction.action == ACTION.CROAKDETAIL:
         croakdetailID = userAction.payload
